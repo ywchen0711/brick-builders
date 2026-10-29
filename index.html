@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>積木建造家：空蕩島</title>
+  <meta name="description" content="積木建造家：在空蕩島上敲碎方塊收集材料、做家具、蓋房間，村民會搬來住。晚上要跟夥伴黑牙一起打史萊姆。">
+  <meta name="theme-color" content="#2a64b8">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=1">
+</head>
+<body>
+  <canvas id="cv"></canvas>
+  <div id="loading"><div class="lt">積木建造家<b>空蕩島</b></div><div class="lb"><i id="loadbar"></i></div><p>島嶼堆疊中… Building the island…</p></div>
+  <div id="cross"></div>
+  <div id="hudL"><div id="hp"></div><div id="lvl"></div></div>
+  <div id="goal"></div>
+  <button id="lang">EN</button>
+  <div id="selName"></div>
+  <div id="hotbar"></div>
+  <div id="banner"></div>
+  <div id="toast"></div>
+  <div id="say" hidden></div>
+  <div id="menu" hidden></div>
+  <div id="fadeo"></div>
+  <div id="help"></div>
+  <script type="module" src="js/game.js?v=1"></script>
+  <script src="/hub.js" defer data-pos="top-right"></script>
+</body>
+</html>
