@@ -18,6 +18,10 @@ export const ITEMS = {
   pot: { zh: '大鍋', en: 'Cooking pot', icon: '🍲', furn: 'pot' }, chest: { zh: '木箱', en: 'Chest', icon: '🧰', furn: 'chest' }, plant: { zh: '盆栽', en: 'Potted plant', icon: '🪴', furn: 'plant' },
   lantern: { zh: '燈籠', en: 'Lantern', icon: '🏮', furn: 'lantern' }, rug: { zh: '地毯', en: 'Rug', icon: '🟪', furn: 'rug' }, shelf: { zh: '書架', en: 'Bookshelf', icon: '📚', furn: 'shelf' },
   copperHammer: { zh: '銅鎚', en: 'Copper hammer', icon: '🔨', tool: 2 }, ironHammer: { zh: '鐵鎚', en: 'Iron hammer', icon: '⚒️', tool: 3 },
+  // what monsters leave, and what you fight with
+  hide: { zh: '獸皮', en: 'Hide', icon: '🟫' }, bone: { zh: '骨頭', en: 'Bone', icon: '🦴' }, wing: { zh: '蝙蝠翼', en: 'Bat wing', icon: '🦇' }, crown: { zh: '史萊姆王冠', en: 'Slime crown', icon: '👑' }, banner: { zh: '哥布林戰旗', en: 'Goblin banner', icon: '🚩' },
+  club: { zh: '木棒', en: 'Wooden club', icon: '🏏', weapon: 2 }, copperSword: { zh: '銅劍', en: 'Copper sword', icon: '🗡️', weapon: 3 }, ironSword: { zh: '鐵劍', en: 'Iron sword', icon: '⚔️', weapon: 5 }, heroSword: { zh: '勇者之劍', en: 'Hero’s sword', icon: '🌟', weapon: 8 },
+  cloth: { zh: '布衣', en: 'Cloth tunic', icon: '👕', armor: 1 }, leather: { zh: '皮甲', en: 'Leather armour', icon: '🦺', armor: 2 }, ironArmor: { zh: '鐵甲', en: 'Iron armour', icon: '🛡️', armor: 3 }, kingArmor: { zh: '王者之鎧', en: 'King’s armour', icon: '💠', armor: 4 },
   soup: { zh: '蔬菜湯', en: 'Vegetable soup', icon: '🥣', food: 7 }, bread: { zh: '烤餅', en: 'Flatbread', icon: '🫓', food: 4 },
 };
 // what breaking a brick gives: an item (and sometimes another); how many blows it takes with a bare hammer
@@ -35,6 +39,9 @@ export const RECIPES = [
   ['chest', 1, { plank: 4 }, 2], ['pot', 1, { stone: 4, copper: 1 }, 2], ['copperHammer', 1, { copper: 3, wood: 1 }, 2], ['plaster', 4, { sand: 2, stone: 1 }, 2], ['plant', 1, { clay: 2, seed: 1 }, 2], ['path', 4, { stone: 3 }, 2],
   ['ironHammer', 1, { iron: 3, coal: 1, wood: 1 }, 3], ['lantern', 1, { iron: 1, coal: 1 }, 3], ['tile', 4, { clay: 2, coal: 1 }, 3], ['redbrick', 4, { clay: 3 }, 3], ['rug', 1, { slime: 2, branch: 2 }, 3],
   ['shelf', 1, { plank: 4, branch: 2 }, 4], ['bread', 1, { seed: 3, coal: 1 }, 2],
+  // weapons and armour
+  ['club', 1, { wood: 2 }, 1], ['cloth', 1, { branch: 3, slime: 2 }, 1], ['copperSword', 1, { copper: 3, wood: 1 }, 2], ['leather', 1, { hide: 4 }, 2],
+  ['ironSword', 1, { iron: 3, coal: 1 }, 3], ['ironArmor', 1, { iron: 5, hide: 2 }, 3], ['heroSword', 1, { crown: 1, iron: 2, wing: 2 }, 3], ['kingArmor', 1, { banner: 1, iron: 3, bone: 3 }, 3],
   ['soup', 1, { cabbage: 2 }, 3, false, 'pot'], // made at the pot
 ];
 // rooms: walls two bricks high all round and a door; what is inside makes it what it is (the first that fits)

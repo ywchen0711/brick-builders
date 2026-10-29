@@ -47,6 +47,11 @@ export function buildWorld(seed = 7) {
   for (const [x, z, w, d] of [[ruins[0], ruins[1], 6, 5], [ruins[0] + 10, ruins[1] - 3, 4, 4], [ruins[0] - 4, ruins[1] + 9, 5, 3]]) {
     const y0 = V.top(x, z); for (let i = 0; i < w; i++) for (let j = 0; j < d; j++) { if (i > 0 && i < w - 1 && j > 0 && j < d - 1) continue; const hh = Math.floor(R() * 3); for (let y = 0; y < hh; y++) V.set(x + i, y0 + y, z + j, R() < 0.3 ? B.MOSS : B.GREY); }
   }
+  // the goblins' camp, deep in the wood: a stockade of trunks, two hide tents, a fire
+  const camp = [34, 58]; { const [cx, cz] = camp, y0 = V.top(cx, cz);
+    for (let z = cz - 9; z <= cz + 9; z++) for (let x = cx - 9; x <= cx + 9; x++) { const r = Math.hypot(x - cx, z - cz); if (r > 9.5) continue; for (let y = y0; y < y0 + 12; y++) V.set(x, y, z, B.AIR); for (let y = y0 - 2; y < y0; y++) V.set(x, y, z, y === y0 - 1 ? B.DIRT : B.STONE); if (r > 8.4 && !(Math.abs(z - cz) < 2 && x > cx)) for (let y = y0; y < y0 + 3; y++) V.set(x, y, z, B.WOOD); }
+    for (const [tx, tz] of [[cx - 4, cz - 3], [cx - 3, cz + 4]]) for (let k = 0; k < 3; k++) for (let dx = -2 + k; dx <= 2 - k; dx++) for (let dz = -1; dz <= 1; dz++) V.set(tx + dx, y0 + k, tz + dz, k === 2 ? B.RUST : B.CLAY);
+    V.set(cx + 2, y0, cz, B.GLOW); for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) V.set(cx + 2 + dx, y0, cz + dz, B.STONE); }
   const sy = V.top(start[0], start[1]);
-  return { V, start: { x: start[0] + 0.5, y: sy, z: start[1] + 0.5 }, hills, pond, wood, ruins, seed };
+  return { V, start: { x: start[0] + 0.5, y: sy, z: start[1] + 0.5 }, hills, pond, wood, ruins, camp, seed };
 }

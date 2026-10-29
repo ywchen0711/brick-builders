@@ -13,8 +13,10 @@ export const BUILDER = {
     const grip = new THREE.Group(); grip.rotation.x = Math.PI / 2 - 1.05; F.hands[0].add(grip);
     const handle = mk(new THREE.CylinderGeometry(0.7, 0.7, 13, 8), plastic('#8a5a32'), grip); handle.position.y = 4;
     const head = mk(rbox(7.5, 3.6, 3.6, 0.6), plastic('#a8743a'), grip); head.position.y = 10.5;
+    const sword = new THREE.Group(); grip.add(sword); sword.visible = false; const hilt = mk(new THREE.CylinderGeometry(0.7, 0.7, 5, 8), plastic('#5a3a24'), sword); hilt.position.y = 1; mk(rbox(5, 1, 1.2, 0.3), plastic('#d8a838', { metalness: 0.6 }), sword).position.y = 3.6; const blade = mk(rbox(1.6, 16, 0.5, 0.25), plastic('#c8ccd4', { metalness: 0.8, roughness: 0.25 }), sword); blade.position.y = 12;
+    const arms = (kind, color) => { sword.visible = kind === 'sword'; handle.visible = head.visible = kind !== 'sword'; if (color) blade.material = plastic(color, { metalness: 0.8, roughness: 0.25, emissive: color === '#9af0ff' ? '#3ab8ff' : '#000000', emissiveIntensity: 0.5 }); };
     const setTool = (p) => { head.material = plastic(p >= 3 ? '#c8ccd4' : p === 2 ? '#d8803a' : '#a8743a', { metalness: p >= 2 ? 0.7 : 0, roughness: p >= 2 ? 0.3 : 0.5 }); };
-    scene?.add(F.root); return { F, grip, setTool, remove() { F.root.parent?.remove(F.root); } };
+    scene?.add(F.root); return { F, grip, setTool, arms, remove() { F.root.parent?.remove(F.root); } };
   },
 };
 export const HEIYA = {

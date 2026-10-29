@@ -7,7 +7,8 @@ import * as THREE from '../lib/three.module.min.js';
 import { VS, B, SOLID } from './voxel.js';
 import { buildWorld, W as WW, D as DD, WL } from './worldgen.js';
 import { ITEMS, DROP, RECIPES, ROOMS, LEVELS, VILLAGERS, STEPS } from './items.js';
-import { makeFurn, FURN_SOLID, makeCrop, makeSlime } from './furniture.js';
+import { makeFurn, FURN_SOLID, makeCrop } from './furniture.js';
+import { mobEngine, MOBS } from './mobs.js?v=2';
 import { makeFig } from './brick/minifig.js';
 import { BUILDER, HEIYA } from './cast/builders.js';
 import { makeFX } from './fx.js';
@@ -48,8 +49,8 @@ function lightHour(tod, at) {
 
 // ---------------------------------------------------------------- the save: what you carry, what you changed, who lives here
 const KEY = 'builders.save';
-const S = (() => { const fresh = { v: 1, inv: {}, got: {}, hot: [null, null, null, null, null, null, null, null], sel: 0, edits: {}, furn: {}, crops: {}, rooms: {}, awarded: {}, happy: 0, level: 1, villagers: [], quests: {}, step: 0, placed: {}, stats: { cabbage: 0, slimes: 0, sown: 0 }, pos: null, tod: 0.3, hp: 10 };
-  try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s && s.v === 1 && !q.has('new')) return { ...fresh, ...s, stats: { ...fresh.stats, ...s.stats } }; } catch (e) { /* a fresh start */ } return fresh; })();
+const S = (() => { const fresh = { v: 1, inv: {}, got: {}, hot: [null, null, null, null, null, null, null, null], sel: 0, edits: {}, furn: {}, crops: {}, rooms: {}, awarded: {}, happy: 0, level: 1, villagers: [], quests: {}, step: 0, placed: {}, stats: { cabbage: 0, slimes: 0, sown: 0, kills: 0 }, pos: null, tod: 0.3, hp: 10, equip: { weapon: null, armor: null }, beaten: {} };
+  try { const s = JSON.parse(localStorage.getItem(KEY) || 'null'); if (s && s.v === 1 && !q.has('new')) return { ...fresh, ...s, stats: { ...fresh.stats, ...s.stats }, equip: { ...fresh.equip, ...s.equip }, beaten: { ...s.beaten } }; } catch (e) { /* a fresh start */ } return fresh; })();
 const save = () => { try { S.tod = tod; S.pos = { x: me.x, y: me.y, z: me.z }; S.hp = player.hp; localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* full */ } };
 
 // ---------------------------------------------------------------- the island, with your changes on it
@@ -135,6 +136,16 @@ function pollPad(dt) { const gp = [...(navigator.getGamepads?.() || [])].find((g
   const map = { 0: 'Space', 2: 'Mouse0', 1: 'KeyE', 3: 'KeyI', 7: 'Mouse0', 6: '_Mouse2', 5: 'HotR', 4: 'HotL', 9: 'KeyC' }; for (const [i, code] of Object.entries(map)) { const now = b(+i); if (now && !pad.prev[i]) { if (code === 'HotR') { S.sel = (S.sel + 1) % 8; hotbar(); } else if (code === 'HotL') { S.sel = (S.sel + 7) % 8; hotbar(); } else if (code.startsWith('_')) keys[code] = true; else { keys[code] = true; keys['_' + code] = true; } } if (!now && pad.prev[i] && !code.startsWith('_') && !code.startsWith('Hot')) keys[code] = false; pad.prev[i] = now; }
   if (b(0)) keys.Space = true; const dpad = b(12) ? -1 : b(13) ? 1 : 0; if (dpad && dpad !== pad.d && menu.open) keys[dpad < 0 ? '_ArrowUp' : '_ArrowDown'] = true; pad.d = dpad; }
 
+// ---------------------------------------------------------------- touch: a stick on the left, the view dragged on the right, buttons
+const touch = { mx: 0, mz: 0, on: matchMedia('(pointer: coarse)').matches };
+if (touch.on) { document.body.classList.add('touch');
+  const stick = $('stick'), knob = $('knob'); let sid = null, sx = 0, sy = 0, cid = null, cx = 0, cy = 0;
+  addEventListener('touchstart', (e) => { wake(); music.start?.(); for (const t of e.changedTouches) { if (t.target.closest('button,.slot,#menu,#hotbar')) continue; if (t.clientX < innerWidth * 0.42 && sid === null) { sid = t.identifier; sx = t.clientX; sy = t.clientY; stick.style.left = sx - 60 + 'px'; stick.style.top = sy - 60 + 'px'; stick.hidden = false; } else if (cid === null) { cid = t.identifier; cx = t.clientX; cy = t.clientY; } } }, { passive: true });
+  addEventListener('touchmove', (e) => { for (const t of e.changedTouches) { if (t.identifier === sid) { const dx = clamp(t.clientX - sx, -50, 50), dy = clamp(t.clientY - sy, -50, 50); touch.mx = dx / 50; touch.mz = dy / 50; knob.style.transform = `translate(${dx}px,${dy}px)`; } if (t.identifier === cid) { mouseDX += (t.clientX - cx) * 1.5; mouseDY += (t.clientY - cy) * 1.5; cx = t.clientX; cy = t.clientY; } } }, { passive: true });
+  const end = (e) => { for (const t of e.changedTouches) { if (t.identifier === sid) { sid = null; touch.mx = touch.mz = 0; stick.hidden = true; knob.style.transform = ''; } if (t.identifier === cid) cid = null; } }; addEventListener('touchend', end); addEventListener('touchcancel', end);
+  for (const [id, k, hold] of [['tHit', 'Mouse0', true], ['tJump', 'Space', true], ['tPlace', '_Mouse2'], ['tUse', 'KeyE'], ['tCraft', 'KeyC'], ['tBag', 'KeyI']]) { const b = $(id); b.addEventListener('touchstart', (e) => { e.preventDefault(); wake(); if (k.startsWith('_')) keys[k] = true; else { keys[k] = true; keys['_' + k] = true; } b.classList.add('on'); }); b.addEventListener('touchend', (e) => { e.preventDefault(); if (hold || !k.startsWith('_')) keys[k] = false; b.classList.remove('on'); }); }
+}
+
 // ---------------------------------------------------------------- the camera, behind and above; the cross in the middle aims
 const cam = { yaw: Math.PI, pitch: 0.3, dist: 6.5, pos: V3(), look: V3() };
 function placeCamera(dt) {
@@ -177,6 +188,7 @@ function give(id, n = 1, at) {
 }
 function take(id, n = 1) { S.inv[id] = have(id) - n; if (S.inv[id] <= 0) { delete S.inv[id]; } hotbar(); }
 const tool = () => (have('ironHammer') ? 3 : have('copperHammer') ? 2 : 1);
+const atk = () => (S.equip.weapon && have(S.equip.weapon) ? ITEMS[S.equip.weapon].weapon : tool()), def = () => (S.equip.armor && have(S.equip.armor) ? ITEMS[S.equip.armor].armor : 0);
 // ---------------------------------------------------------------- breaking, building, using
 let swing = 0, aimNow = null; const dmg = new Map();
 const SWING = [{ t: 0, p: { armR: -0.4, outR: 0.1 } }, { t: 0.1, p: { armR: -2.8, outR: 0.2, tilt: -0.1 } }, { t: 0.2, ease: 'in', p: { armR: -0.6, outR: 0.1, tilt: 0.2, fwd: 0.1 } }, { t: 0.32, p: { armR: -0.4 } }];
@@ -184,8 +196,7 @@ function act() { // the hammer comes down on what is in front of you: a slime, a
   if (me.anim) return; const target = aimNow;
   me.anim = { keys: SWING, len: 0.32, t: 0, events: [{ t: 0.18, run: () => {
     SFX.swing?.(0.6);
-    const sl = slimes.find((s) => s.alive && Math.hypot(s.x - me.x, s.z - me.z) < 2.4 && Math.abs(angWrap(Math.atan2(s.x - me.x, s.z - me.z) - me.yaw)) < 1.1);
-    if (sl) { hitSlime(sl, tool(), me); return; }
+    if (MOB.hitAt(me, me.yaw, 2.6, 1.15, atk())) return;
     if (!target || target.kind === 'air') return; if (target.kind === 'block' && crops.get(ck(target.x, target.y + 1, target.z))) { const c = crops.get(ck(target.x, target.y + 1, target.z)); act.crop = { kind: 'crop', x: c.x, y: c.y, z: c.z, c }; } else act.crop = null; const tgt = act.crop || target; const { x, y, z } = tgt;
     if (tgt.kind === 'crop') { const c = tgt.c; scene.remove(c.g); crops.delete(ck(x, y, z)); delete S.crops[ck(x, y, z)]; if (c.stage >= 2) { give('cabbage', 1 + (Math.random() < 0.4 ? 1 : 0), V3(x + 0.5, y + 0.5, z + 0.5)); if (Math.random() < 0.6) give('seed', 1); S.stats.cabbage++; questCheck(); SFX.flick?.(); } else give('seed', 1); burst(x, y, z, '#6ac04a'); return; }
     if (target.kind === 'furn') { const f = removeFurn(target.f); give(Object.keys(ITEMS).find((k) => ITEMS[k].furn === f.type), 1, V3(x + 0.5, y + 0.5, z + 0.5)); SFX.thud?.(0.6); burst(x, y, z, '#a8743a'); return; }
@@ -225,7 +236,7 @@ function use() { // E: talk, sleep, craft, open
   const f = near.f;
   if (f.type === 'workbench') return craftMenu('bench');
   if (f.type === 'pot') return craftMenu('pot');
-  if (f.type === 'bed') { if (tod > 0.75 || tod < 0.2) { fade(() => { tod = 0.26; player.hp = player.maxHp; for (const s of slimes) s.alive = false; toast(T('一覺睡到天亮，體力全滿', 'You sleep till morning: full health')); save(); }); } else toast(T('天黑了才能睡', 'You can sleep once it’s dark')); return; }
+  if (f.type === 'bed') { if (tod > 0.75 || tod < 0.2) { fade(() => { tod = 0.26; player.hp = player.maxHp; MOB.clearNight(); toast(T('一覺睡到天亮，體力全滿', 'You sleep till morning: full health')); save(); }); } else toast(T('天黑了才能睡', 'You can sleep once it’s dark')); return; }
   if (f.type === 'door') { f.open = !f.open; f.g.rotation.y = f.rot * Math.PI / 2 + (f.open ? Math.PI / 2 : 0); SFX.flick?.(); return; }
   if (f.type === 'chest') { toast(T('箱子裡空空的（東西都在你的背包裡）', 'Empty — everything you carry is in your bag')); return; }
 }
@@ -275,31 +286,11 @@ function stepCheck() {
   if (ok) { S.step++; SFX.flick?.(); toast(T('✔ ' + st.zh, '✔ ' + st.en)); if (S.step === 2) setTimeout(() => toast(T('提示：按 C 打開隨身製作', 'Tip: press C to craft by hand')), 1500); }
   goalBox();
 }
-// ---------------------------------------------------------------- slimes, at night
-const slimes = [];
-function spawnSlime() {
-  const a = Math.random() * Math.PI * 2, r = 16 + Math.random() * 14, x = Math.floor(me.x + Math.cos(a) * r), z = Math.floor(me.z + Math.sin(a) * r); if (x < 4 || z < 4 || x > WW - 5 || z > DD - 5) return;
-  const y = V.top(x, z); if (V.get(x, y - 1, z) !== B.GRASS || y <= WL + 1 || roomCells.has(x + ',' + y + ',' + z)) return;
-  const g = makeSlime(Math.random() < 0.15 ? '#e05a8a' : '#3a8ae0'); g.scale.setScalar(VS * 1.3); scene.add(g); slimes.push({ g, x: x + 0.5, y, z: z + 0.5, vx: 0, vy: 0, vz: 0, hp: 3, alive: true, hopT: Math.random(), hitT: 0, yaw: 0, flash: 0 });
-}
-function hitSlime(s, d, from) { s.hp -= d; s.flash = 0.2; const dx = s.x - from.x, dz = s.z - from.z, l = Math.hypot(dx, dz) || 1; s.vx = dx / l * 7; s.vz = dz / l * 7; s.vy = 6; SFX.hit?.(0.6); SFX.bounce?.(); fx.hitSparks(V3(s.x, s.y + 0.5, s.z).multiplyScalar(VS), V3(dx / l, 0.5, dz / l)); fx.S.shake = Math.max(fx.S.shake, 0.15);
-  if (s.hp <= 0) { s.alive = false; burst(s.x - 0.5, s.y, s.z - 0.5, '#5aa8ff', 18); give('slime', 1, V3(s.x, s.y + 0.6, s.z)); if (Math.random() < 0.25) give('seed', 1); S.stats.slimes++; questCheck(); } }
-function stepSlimes(dt, night) {
-  if (night && slimes.filter((s) => s.alive).length < 6 && Math.random() < dt * 0.25) spawnSlime();
-  for (const s of slimes) {
-    if (!s.alive) { s.g.scale.multiplyScalar(0.85); if (s.g.scale.x < 0.02) scene.remove(s.g); continue; }
-    if (!night && Math.random() < dt * 0.15) { s.alive = false; continue; } // they melt away by day
-    const dx = me.x - s.x, dz = me.z - s.z, d = Math.hypot(dx, dz); s.hopT -= dt; s.hitT -= dt;
-    const gy = V.top(Math.floor(s.x), Math.floor(s.z)); if (s.y > gy) s.vy -= 26 * dt; s.y += s.vy * dt; if (s.y <= gy) { s.y = gy; s.vy = 0; s.vx *= 0.8; s.vz *= 0.8; }
-    if (s.y === gy && s.hopT <= 0) { s.hopT = 0.7 + Math.random() * 0.5; const chase = d < 14 && player.dead <= 0, a = chase ? Math.atan2(dx, dz) : Math.random() * 6.28; s.yaw = a; s.vx = Math.sin(a) * (chase ? 3.6 : 1.5); s.vz = Math.cos(a) * (chase ? 3.6 : 1.5); s.vy = 6.5; }
-    const nx = s.x + s.vx * dt, nz = s.z + s.vz * dt; if (!SOLID(V.get(Math.floor(nx), Math.floor(s.y + 0.3), Math.floor(nz))) && !roomCells.has(Math.floor(nx) + ',' + Math.floor(s.y) + ',' + Math.floor(nz))) { s.x = nx; s.z = nz; } else { s.vx *= -0.5; s.vz *= -0.5; }
-    if (d < 0.9 && Math.abs(me.y - s.y) < 1.2 && s.hitT <= 0) { s.hitT = 1.2; hurt(1, s); }
-    const sq = s.y === gy ? 1 - Math.max(0, s.hopT - 0.55) * 0.6 : 1.1; s.g.position.set(s.x * VS, s.y * VS, s.z * VS); s.g.rotation.y = s.yaw; s.g.children[0].scale.set(1 / sq * 0.9 + 0.1, 0.8 * sq, 1 / sq * 0.9 + 0.1);
-    if (s.flash > 0) { s.flash -= dt; s.g.userData.body.material.emissive.setRGB(s.flash * 5, s.flash * 5, s.flash * 5); } else s.g.userData.body.material.emissive.setRGB(0, 0, 0);
-  }
-  for (let i = slimes.length - 1; i >= 0; i--) if (!slimes[i].alive && slimes[i].g.scale.x < 0.02) slimes.splice(i, 1);
-}
-function hurt(n, from) { if (player.inv > 0 || player.dead > 0) return; player.hp -= n; player.inv = 1; player.regenT = 6; me.hurtT = 0.35; const dx = me.x - from.x, dz = me.z - from.z, l = Math.hypot(dx, dz) || 1; me.vx = dx / l * 7; me.vz = dz / l * 7; me.vy = 5; SFX.ouch?.(true, 'light'); fx.S.shake = 0.25;
+// ---------------------------------------------------------------- the monsters (js/mobs.js)
+const MOB = mobEngine({ scene, V, VS, B, me: () => me, pal: () => pal, world: Wd, hurt: (n, f) => hurt(n, f), give: (id, n, at) => give(id, n, at), burst: (...a) => burst(...a), fx, SFX, T, lang: () => lang, roomCells, banner: (...a) => banner(...a), toast: (s2) => toast(s2), popUp: (...a) => popUp(...a), alive: () => player.dead <= 0,
+  onKill: (m) => { S.stats.kills++; if (m.kind.includes('slime') && m.kind !== 'kingslime') S.stats.slimes++; if (m.T.boss) { S.beaten[m.kind] = true; banner(T(`打倒了${m.T.zh}！`, `${m.T.en} is beaten!`), '#ffd84a', T('得到傳說的材料・♥ +60', 'A legendary material · ♥ +60')); SFX.gong?.(1); setTimeout(() => addHappy(60), 1500); toast(T(m.kind === 'kingslime' ? '史萊姆王冠可以做勇者之劍！' : '哥布林戰旗可以做王者之鎧！', m.kind === 'kingslime' ? 'The slime crown makes the Hero’s sword!' : 'The goblin banner makes the King’s armour!')); } questCheck(); save(); } });
+if (!S.beaten.goblinking) MOB.camp(Wd.camp[0] + 0.5, Wd.camp[1] + 0.5);
+function hurt(n, from) { if (player.inv > 0 || player.dead > 0) return; n = Math.max(1, n - def()); player.hp -= n; player.inv = 1; player.regenT = 6; me.hurtT = 0.35; const dx = me.x - from.x, dz = me.z - from.z, l = Math.hypot(dx, dz) || 1; me.vx = dx / l * 7; me.vz = dz / l * 7; me.vy = 5; SFX.ouch?.(true, 'light'); fx.S.shake = 0.25;
   if (player.hp <= 0) { player.dead = 2; toast(T('昏倒了……', 'You faint…')); } hud(); }
 // ---------------------------------------------------------------- the menus: crafting, the bag
 const menu = { open: null, i: 0, items: [] };
@@ -309,25 +300,27 @@ function craftMenu(where) {
 }
 function drawMenu() {
   const el = $('menu'); el.hidden = false;
+  const x = '<button class="x" data-close="1" aria-label="close">✕</button>';
   if (menu.open === 'craft') {
     const title = { hand: T('隨身製作', 'Craft by hand'), bench: T('工作台', 'Workbench'), pot: T('大鍋', 'Cooking pot') }[menu.where];
-    el.innerHTML = `<h3>${title}<small>${T('↑↓ 選擇・E/Enter 製作・Esc 關閉', '↑↓ choose · E/Enter make · Esc close')}</small></h3><div class="list">${menu.items.map((r, i) => { const it = ITEMS[r[0]], ok = Object.entries(r[2]).every(([k, n]) => have(k) >= n);
+    el.innerHTML = x + `<h3>${title}<small>${T('↑↓ 選擇・E/Enter 製作・Esc 關閉', '↑↓ choose · E/Enter make · Esc close')}</small></h3><div class="list">${menu.items.map((r, i) => { const it = ITEMS[r[0]], ok = Object.entries(r[2]).every(([k, n]) => have(k) >= n);
       return `<button data-i="${i}" class="${i === menu.i ? 'on' : ''} ${ok ? '' : 'no'}"><span class="ic">${it.icon}</span><b>${N(it)}${r[1] > 1 ? ' ×' + r[1] : ''}</b><small>${Object.entries(r[2]).map(([k, n]) => `${ITEMS[k].icon}${N(ITEMS[k])} ${have(k)}/${n}`).join('　')}</small></button>`; }).join('') || `<p>${T('還沒有可以做的東西', 'Nothing to make yet')}</p>`}</div>`
       + (menu.where === 'hand' ? `<p class="tip">${T('其他東西要在工作台做。', 'Everything else is made at a workbench.')}</p>` : '');
   }
   if (menu.open === 'bag') {
-    const ids = Object.keys(S.inv); el.innerHTML = `<h3>${T('背包', 'Bag')}<small>${T(`點一樣東西放到快捷欄第 ${S.sel + 1} 格・Esc 關閉`, `Click an item to put it in hotbar slot ${S.sel + 1} · Esc close`)}</small></h3><div class="grid">${ids.map((k) => `<button data-k="${k}"><span class="ic">${ITEMS[k].icon}</span><b>${N(ITEMS[k])}</b><small>${have(k)}</small></button>`).join('') || `<p>${T('空空的', 'Empty')}</p>`}</div>`
+    const ids = Object.keys(S.inv); el.innerHTML = x + `<h3>${T('背包', 'Bag')}<small>${T(`點東西放到快捷欄第 ${S.sel + 1} 格；點武器、防具就會裝備・Esc 關閉`, `Click an item for hotbar slot ${S.sel + 1}; click a weapon or armour to wear it · Esc close`)}</small></h3><div class="grid">${ids.map((k) => `<button data-k="${k}" class="${S.equip.weapon === k || S.equip.armor === k ? 'eq' : ''}"><span class="ic">${ITEMS[k].icon}</span><b>${N(ITEMS[k])}</b><small>${ITEMS[k].weapon ? '⚔' + ITEMS[k].weapon + (S.equip.weapon === k ? ' ' + T('裝備中', 'worn') : '') : ITEMS[k].armor ? '🛡' + ITEMS[k].armor + (S.equip.armor === k ? ' ' + T('裝備中', 'worn') : '') : have(k)}</small></button>`).join('') || `<p>${T('空空的', 'Empty')}</p>`}</div>`
       + `<p class="tip">${T(`基地 Lv${S.level}・幸福愛心 ♥${S.happy}・鎚子力量 ${tool()}・已打倒史萊姆 ${S.stats.slimes}・收成高麗菜 ${S.stats.cabbage}`, `Base level ${S.level} · ♥${S.happy} · hammer power ${tool()} · slimes beaten ${S.stats.slimes} · cabbages ${S.stats.cabbage}`)}</p>`;
   }
 }
 function closeMenu() { menu.open = null; $('menu').hidden = true; }
 function craft(r) { if (!Object.entries(r[2]).every(([k, n]) => have(k) >= n)) { toast(T('材料不夠', 'Not enough materials')); SFX.thud?.(0.3); return; } for (const [k, n] of Object.entries(r[2])) take(k, n); give(r[0], r[1]); SFX.gong?.(0.4); if (ITEMS[r[0]].tool) { me.hero.setTool(tool()); toast(T(`鎚子變強了：力量 ${tool()}`, `Your hammer is stronger: power ${tool()}`)); } drawMenu(); }
-$('menu').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.i != null) { menu.i = +b.dataset.i; craft(menu.items[menu.i]); } if (b.dataset.k) { const k = b.dataset.k, at = S.hot.indexOf(k); if (at >= 0) S.hot[at] = null; S.hot[S.sel] = k; hotbar(); drawMenu(); } });
+$('menu').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.close) { closeMenu(); return; } if (b.dataset.i != null) { menu.i = +b.dataset.i; craft(menu.items[menu.i]); } if (b.dataset.k && (ITEMS[b.dataset.k].weapon || ITEMS[b.dataset.k].armor)) { const k = b.dataset.k, slot = ITEMS[k].weapon ? 'weapon' : 'armor'; S.equip[slot] = S.equip[slot] === k ? null : k; SFX.flick?.(); toast(S.equip[slot] ? T(`裝備了${ITEMS[k].zh}`, `Equipped: ${ITEMS[k].en}`) : T('卸下了', 'Unequipped')); hud(); drawMenu(); return; }
+  if (b.dataset.k) { const k = b.dataset.k, at = S.hot.indexOf(k); if (at >= 0) S.hot[at] = null; S.hot[S.sel] = k; hotbar(); drawMenu(); } });
 // ---------------------------------------------------------------- the HUD
 function hotbar() { $('hotbar').innerHTML = S.hot.map((id, i) => `<div class="slot ${i === S.sel ? 'on' : ''}" data-s="${i}"><i>${i + 1}</i>${id && have(id) ? `<span>${ITEMS[id].icon}</span><b>${have(id)}</b>` : ''}</div>`).join(''); const id = S.hot[S.sel]; $('selName').textContent = id && have(id) ? N(ITEMS[id]) : ''; }
 $('hotbar').addEventListener('click', (e) => { const s = e.target.closest('[data-s]'); if (s) { S.sel = +s.dataset.s; hotbar(); } });
 function hud() {
-  $('hp').innerHTML = Array.from({ length: player.maxHp / 2 }, (_, i) => `<i class="h${clamp(player.hp - i * 2, 0, 2)}"></i>`).join('');
+  $('hp').innerHTML = Array.from({ length: player.maxHp / 2 }, (_, i) => `<i class="h${clamp(player.hp - i * 2, 0, 2)}"></i>`).join('') + `<em>⚔${atk()} 🛡${def()}</em>`;
   const lo = LEVELS[S.level - 1] || 0, hi = LEVELS[S.level] ?? null; $('lvl').innerHTML = `<b>${T('基地', 'Base')} Lv${S.level}</b><span><i style="width:${hi ? (S.happy - lo) / (hi - lo) * 100 : 100}%"></i></span><small>♥ ${S.happy}${hi ? ' / ' + hi : ''}</small>`;
 }
 function goalBox() { const st = STEPS[S.step], qs = VILLAGERS.filter((v) => S.quests[v.quest.id] === 'given'); $('goal').innerHTML = (st ? `<p>◆ ${N(st)}</p>` : '') + qs.map((v) => `<p class="q">${questMet(v.quest) ? '✔' : '•'} ${v.zh}：${N(v.quest)}</p>`).join(''); }
@@ -350,7 +343,7 @@ function step(dt) {
   if (menu.open) { if (pressed('Escape') || (menu.open === 'bag' && pressed('KeyI')) || (menu.open === 'craft' && menu.where === 'hand' && pressed('KeyC'))) closeMenu();
     else if (menu.open === 'craft') { if (pressed('ArrowUp') || pressed('KeyW')) { menu.i = (menu.i + menu.items.length - 1) % menu.items.length; drawMenu(); } if (pressed('ArrowDown') || pressed('KeyS')) { menu.i = (menu.i + 1) % menu.items.length; drawMenu(); } if ((pressed('KeyE') || pressed('Enter') || pressed('Space')) && menu.items[menu.i]) craft(menu.items[menu.i]); } }
   const busy = !!menu.open || player.dead > 0;
-  const fwd = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0) - pad.mz, side = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0) + pad.mx;
+  const fwd = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0) - pad.mz - touch.mz, side = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0) + pad.mx + touch.mx;
   let mx = 0, mz = 0; if (!busy) { const cy = Math.cos(cam.yaw), sy = Math.sin(cam.yaw); mx = -sy * fwd + cy * side; mz = -cy * fwd - sy * side; const l = Math.hypot(mx, mz); if (l > 1) { mx /= l; mz /= l; } }
   const top = me.inWater ? 3 : keys.ShiftLeft ? 7.5 : 5.2; me.vx += (mx * top - me.vx) * Math.min(1, dt * 12); me.vz += (mz * top - me.vz) * Math.min(1, dt * 12);
   if (Math.hypot(mx, mz) > 0.15) me.yaw += angWrap(Math.atan2(mx, mz) - me.yaw) * Math.min(1, dt * 12);
@@ -367,11 +360,11 @@ function step(dt) {
   moveFig(me, dt); player.inv = Math.max(0, player.inv - dt); me.hurtT = Math.max(0, me.hurtT - dt);
   player.regenT -= dt; if (player.regenT <= 0 && player.hp < player.maxHp && player.hp > 0) { player.regenT = 8; player.hp++; hud(); }
   // ---- Heiya: follows; fights any slime near
-  { const foe = slimes.filter((s) => s.alive).sort((a, b) => Math.hypot(a.x - pal.x, a.z - pal.z) - Math.hypot(b.x - pal.x, b.z - pal.z))[0], fd = foe ? Math.hypot(foe.x - pal.x, foe.z - pal.z) : 99;
+  { const foe = MOB.list.filter((s) => s.alive && (s.kind !== 'goblinking' || s.awake)).sort((a, b) => Math.hypot(a.x - pal.x, a.z - pal.z) - Math.hypot(b.x - pal.x, b.z - pal.z))[0], fd = foe ? Math.hypot(foe.x - pal.x, foe.z - pal.z) : 99;
     const tgt = foe && fd < 9 && Math.hypot(foe.x - me.x, foe.z - me.z) < 14 ? foe : null, tx = tgt ? tgt.x : me.x - Math.sin(me.yaw) * 1.6, tz = tgt ? tgt.z : me.z - Math.cos(me.yaw) * 1.6, dx = tx - pal.x, dz = tz - pal.z, d = Math.hypot(dx, dz);
     if (Math.hypot(me.x - pal.x, me.z - pal.z) > 24) { pal.x = me.x - 1; pal.z = me.z - 1; pal.y = me.y + 0.5; pal.vy = 0; }
-    const sp = tgt ? (d > 1.2 ? 6 : 0) : (d > 1.8 ? clamp(d * 2.5, 0, 7) : 0); pal.vx = d > 0.1 ? dx / d * sp : 0; pal.vz = d > 0.1 ? dz / d * sp : 0; if (d > 0.2) pal.yaw += angWrap(Math.atan2(dx, dz) - pal.yaw) * Math.min(1, dt * 8);
-    pal.atkT = (pal.atkT || 0) - dt; if (tgt && d < 1.6 && pal.atkT <= 0 && !pal.anim) { pal.atkT = 0.9; pal.anim = { keys: [{ t: 0, p: { armR: -0.3 } }, { t: 0.1, p: { armR: -2.4, armL: -1.4, tilt: -0.1 } }, { t: 0.2, ease: 'in', p: { armR: -0.4, armL: 0.4, tilt: 0.25, fwd: 0.2 } }, { t: 0.35, p: {} }], len: 0.35, t: 0, events: [{ t: 0.2, run: () => tgt.alive && hitSlime(tgt, 1, pal) }] }; }
+    const sp = tgt ? (d > 1.2 + (tgt.r || 0) ? 6 : 0) : (d > 1.8 ? clamp(d * 2.5, 0, 7) : 0); pal.vx = d > 0.1 ? dx / d * sp : 0; pal.vz = d > 0.1 ? dz / d * sp : 0; if (d > 0.2) pal.yaw += angWrap(Math.atan2(dx, dz) - pal.yaw) * Math.min(1, dt * 8);
+    pal.atkT = (pal.atkT || 0) - dt; if (tgt && d < 1.8 + (tgt.r || 0) && pal.atkT <= 0 && !pal.anim) { pal.atkT = 0.9; pal.anim = { keys: [{ t: 0, p: { armR: -0.3 } }, { t: 0.1, p: { armR: -2.4, armL: -1.4, tilt: -0.1 } }, { t: 0.2, ease: 'in', p: { armR: -0.4, armL: 0.4, tilt: 0.25, fwd: 0.2 } }, { t: 0.35, p: {} }], len: 0.35, t: 0, events: [{ t: 0.2, run: () => tgt.alive && MOB.hitAt(pal, pal.yaw, 2.4, 1.4, 2) }] }; }
     if (pal.blocked && pal.onGround) pal.vy = 10; pal.blocked = false; moveFig(pal, dt); }
   // ---- villagers: wander near home, walk in on arrival, sleep in a bed at night, hearts when happy
   const beds = [...furn.values()].filter((f) => f.type === 'bed');
@@ -386,7 +379,11 @@ function step(dt) {
     f.heartT -= dt; if (f.heartT <= 0 && Object.keys(S.rooms).length && !night) { f.heartT = 35 + Math.random() * 35; heartFrom(f); }
   });
   for (let i = hearts.length - 1; i >= 0; i--) { const h = hearts[i]; h.t += dt; h.s.position.set(h.x * VS, (h.y + Math.sin(h.t * 3) * 0.2) * VS, h.z * VS); if (Math.hypot(h.x - me.x, h.z - me.z) < 2.6) { scene.remove(h.s); hearts.splice(i, 1); addHappy(h.n, V3(h.x, h.y, h.z)); SFX.gong?.(0.3); } else if (h.t > 90) { scene.remove(h.s); hearts.splice(i, 1); } }
-  stepSlimes(dt, night);
+  MOB.step(dt, night);
+  // the King Slime comes for the base on the first night it is at level 3 or more
+  if (night && S.level >= 3 && !S.beaten.kingslime && !MOB.list.some((m) => m.kind === 'kingslime' && m.alive) && (S.kingNight || 0) < Math.floor(clock / 480) + 1 && Math.random() < dt * 0.2) { S.kingNight = Math.floor(clock / 480) + 1; MOB.kingSlime(); }
+  // the weapon in hand when a foe is near, the hammer otherwise
+  { const foeNear = MOB.list.some((m) => m.alive && Math.hypot(m.x - me.x, m.z - me.z) < 7 && (m.kind !== 'goblinking' || m.awake)); const w = S.equip.weapon && have(S.equip.weapon) ? S.equip.weapon : null; const mode = foeNear && w ? 'sword' : 'hammer'; if (mode !== me.armsMode || w !== me.armsW) { me.armsMode = mode; me.armsW = w; me.hero.arms(mode, { club: '#8a5a32', copperSword: '#d8803a', ironSword: '#c8ccd4', heroSword: '#9af0ff' }[w]); } }
   // ---- crops grow (in real time, even while you are away); rooms looked at again after changes
   if (Math.floor(clock) !== Math.floor(clock - dt)) for (const c of crops.values()) growCrop(c);
   if (roomsDirty > 0) { roomsDirty -= dt; if (roomsDirty <= 0) detectRooms(); }
@@ -397,7 +394,7 @@ function step(dt) {
   for (const f of furn.values()) { if (f.upper) continue; if (f.light) f.light.intensity = night ? 3 : 0.4; if (f.g.userData.flame) f.g.userData.flame.scale.setScalar(0.9 + Math.sin(clock * 14 + f.x) * 0.12); }
   fx.update(dt, clock, { tip: V3(), base: V3(), glow: 0, gather: 0, cutting: false, feet: V3(me.x, me.y, me.z).multiplyScalar(VS) });
   studT -= dt; if (studT < 0) { studT = 0.4; V.studsNear(scene, me.x, me.z); }
-  lightHour(tod, V3(me.x, me.y, me.z).multiplyScalar(VS)); music.fight?.(slimes.some((s) => s.alive && Math.hypot(s.x - me.x, s.z - me.z) < 12));
+  lightHour(tod, V3(me.x, me.y, me.z).multiplyScalar(VS)); music.fight?.(MOB.list.some((s) => s.alive && Math.hypot(s.x - me.x, s.z - me.z) < 12 && (s.kind !== 'goblinking' || s.awake)));
   if (toastT > 0) { toastT -= dt; if (toastT <= 0) $('toast').style.opacity = 0; }
   if (Math.floor(clock * 2) !== Math.floor((clock - dt) * 2)) hud();
   saveT -= dt; if (saveT < 0) { saveT = 8; save(); }
@@ -406,9 +403,9 @@ function loop(now) { const dt = Math.min(0.05, (now - last) / 1000); last = now;
 // ---------------------------------------------------------------- start
 $('loading').classList.add('gone'); setTimeout(() => $('loading').remove(), 800);
 $('lang').onclick = () => { lang = lang === 'zh' ? 'en' : 'zh'; try { localStorage.setItem('builders.lang', lang); } catch (e) { /* */ } labels(); };
-function labels() { $('lang').textContent = lang === 'zh' ? 'EN' : '中'; $('help').textContent = T('WASD 移動・空白鍵 跳・左鍵/J 敲擊・右鍵/K 放置・滾輪/1-8 選東西・E 使用/對話・C 隨身製作・I 背包・Shift 跑', 'WASD move · Space jump · left click/J hit · right click/K place · wheel/1-8 choose · E use/talk · C craft · I bag · Shift run'); hotbar(); hud(); goalBox(); }
-labels(); roomsDirty = 0.5;
+function labels() { $('lang').textContent = lang === 'zh' ? 'EN' : '中'; $('help').textContent = touch.on ? '' : T('WASD 移動・空白鍵 跳・左鍵/J 敲擊・右鍵/K 放置・滾輪/1-8 選東西・E 使用/對話・C 隨身製作・I 背包・Shift 跑', 'WASD move · Space jump · left click/J hit · right click/K place · wheel/1-8 choose · E use/talk · C craft · I bag · Shift run'); hotbar(); hud(); goalBox(); }
+labels(); roomsDirty = 0.5; if (touch.on) for (const [id, zh, en] of [['tHit', '敲', 'Hit'], ['tJump', '跳', 'Jump'], ['tPlace', '放', 'Put'], ['tUse', '用', 'Use'], ['tCraft', '做', 'Make'], ['tBag', '包', 'Bag']]) $(id).textContent = T(zh, en);
 if (!S.got.dirt && !Object.keys(S.edits).length) setTimeout(() => { banner(T('空蕩島', 'Empty Isle'), '#ffd84a', T('在這座荒島上，蓋出一座熱鬧的村莊吧！', 'Build a lively village on this empty island!')); say({ zh: '黑牙', en: 'Heiya', role: { zh: '夥伴', en: 'Friend' } }, T('喂，建造家。這座島什麼都沒有……用你那把鎚子敲敲看吧。', 'Hey, builder. There’s nothing on this island… go on, hit something with that hammer.')); }, 900);
 requestAnimationFrame(loop);
-window.GAME = { S, V, me, pal, step, addHappy, talk, hitSlime, aim: () => aimNow, act, place, use, give, have, craftMenu, detectRooms, furn, crops, slimes, villagers, spawnSlime, setBlock, addFurn, cam, camera, render: () => { placeCamera(1); R.render(scene, camera); }, set tod(v) { tod = v; }, get tod() { return tod; }, menu, keys };
+window.GAME = { S, V, me, pal, step, addHappy, talk, MOB, aim: () => aimNow, act, place, use, give, have, craftMenu, detectRooms, furn, crops, villagers, setBlock, addFurn, cam, camera, render: () => { placeCamera(1); R.render(scene, camera); }, set tod(v) { tod = v; }, get tod() { return tod; }, menu, keys };
 window.DONE = true;

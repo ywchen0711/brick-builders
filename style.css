@@ -57,3 +57,21 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0e1424; fon
 #fadeo { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; transition: opacity .5s; z-index: 20; }
 #help { position: fixed; left: 14px; bottom: 82px; font-size: 12px; opacity: .7; text-shadow: 0 1px 2px #000; max-width: 260px; z-index: 4; }
 @media (max-width: 700px) { #hotbar .slot { width: 40px; height: 40px; } #hotbar .slot span { font-size: 20px; } #help { display: none; } }
+
+/* touch: a stick, buttons on the right; the hotbar a little higher */
+#stick { position: fixed; width: 120px; height: 120px; border-radius: 50%; background: rgba(255,255,255,.12); border: 2px solid rgba(255,255,255,.35); z-index: 6; pointer-events: none; }
+#stick i { position: absolute; left: 35px; top: 35px; width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,.45); }
+#tbtns { display: none; }
+body.touch #tbtns { display: grid; position: fixed; right: 12px; bottom: 74px; grid-template-columns: repeat(3, 60px); grid-template-areas: "bag craft use" "place jump hit"; gap: 10px; z-index: 6; }
+body.touch #tbtns .tb { width: 60px; height: 60px; border-radius: 50%; border: 2px solid rgba(255,255,255,.5); background: rgba(10,16,34,.55); color: #fff; font: 900 18px "Noto Sans TC", sans-serif; touch-action: none; }
+body.touch #tbtns .tb.on { background: rgba(255,216,74,.6); }
+#tBag { grid-area: bag; } #tCraft { grid-area: craft; } #tUse { grid-area: use; } #tPlace { grid-area: place; } #tJump { grid-area: jump; } #tHit { grid-area: hit; background: rgba(200,60,40,.6) !important; }
+body.touch #hotbar { bottom: 8px; left: 8px; transform: none; }
+body.touch #hotbar .slot { width: 44px; height: 44px; } body.touch #hotbar .slot span { font-size: 22px; }
+body.touch #selName { left: 12px; transform: none; bottom: 58px; }
+body.touch #help { display: none; }
+body.touch #goal { top: 46px; font-size: 12px; max-width: 220px; }
+#hp em { font-style: normal; font-size: 13px; margin-left: 8px; background: rgba(10,16,34,.55); padding: 1px 8px; border-radius: 8px; align-self: center; }
+#menu .grid button.eq { border-color: #e8a838; background: #fff2cc; }
+
+#menu .x { position: sticky; top: 0; float: right; width: 40px; height: 40px; border-radius: 50%; border: 2px solid #e2d6bc; background: #fff; font: 900 18px sans-serif; color: #6a5a4a; cursor: pointer; margin: -4px -4px 0 8px; }
